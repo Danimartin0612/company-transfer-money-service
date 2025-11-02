@@ -1,0 +1,5 @@
+# conftest.py (en la raíz del proyecto)
+import os, sys
+ROOT = os.path.dirname(__file__)
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
