@@ -10,18 +10,25 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    env:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: eu-west-1
+      AWS_EC2_METADATA_DISABLED: true
+
     services:
       localstack:
-        image: localstack/localstack:latest
+        image: localstack/localstack:3.9   #fija versión estable
         env:
           SERVICES: s3
-          DEFAULT_REGION: eu-west-1
           AWS_DEFAULT_REGION: eu-west-1
+          DEBUG: "1"
         ports:
           - 4566:4566
+        #usa /_localstack/health y chequea "s3":"running" para que nose quede pillado
         options: >-
-          --health-cmd="curl -sf http://localhost:4566/health | grep 'running' || exit 1"
-          --health-interval=5s --health-retries=30 --health-timeout=5s
+          --health-cmd="sh -c \"curl -fsS http://localhost:4566/_localstack/health | grep -E '\\\"s3\\\"\\s*:\\s*\\\"running\\\"' || exit 1\""
+          --health-interval=5s --health-retries=60 --health-timeout=5s
 
     steps:
       - uses: actions/checkout@v4
@@ -40,15 +47,36 @@ jobs:
           mkdir -p reports
           pytest -m "not integration" -n auto --junitxml=reports/junit-unit.xml
 
+      # 🔒 Extra “belt-and-suspenders”: espera por el endpoint HTTP (aunque el health de services ya lo hace)
+      - name: Wait for LocalStack S3 (HTTP)
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:4566/_localstack/health | grep -E '"s3"\s*:\s*"running"'; then
+              echo "LocalStack S3 listo."
+              break
+            fi
+            if (( i % 10 == 0 )); then
+              echo "Aún esperando LocalStack..."
+            fi
+            sleep 2
+          done
+
       - name: Prepare LocalStack S3
         run: |
-          awslocal --endpoint-url=http://localhost:4566 s3api create-bucket --bucket company-transfer-ci-artifacts || true
+          ENDPOINT=http://localhost:4566
+          BUCKET=company-transfer-ci-artifacts
+          # Para regiones != us-east-1 S3 exige LocationConstraint; LocalStack lo acepta
+          awslocal --endpoint-url=$ENDPOINT s3api head-bucket --bucket "$BUCKET" \
+            || awslocal --endpoint-url=$ENDPOINT s3api create-bucket --bucket "$BUCKET" \
+                 --create-bucket-configuration LocationConstraint=$AWS_DEFAULT_REGION
+          awslocal --endpoint-url=$ENDPOINT s3 ls
 
       - name: Publish reports to LocalStack S3
         env:
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
+          ENDPOINT=http://localhost:4566
           BUCKET=company-transfer-ci-artifacts
           REPO=company-transfer-money-service
           BRANCH="${GITHUB_REF_NAME}"
@@ -56,8 +84,8 @@ jobs:
           CI_SYSTEM=github
           PREFIX="s3://${BUCKET}/${REPO}/${BRANCH}/${COMMIT}/${CI_SYSTEM}"
 
-          [ -f reports/junit-unit.xml ] && awslocal s3 cp reports/junit-unit.xml "${PREFIX}/unit/junit-unit.xml" || true
-          awslocal s3 sync reports "${PREFIX}/reports" || true
+          [ -f reports/junit-unit.xml ] && awslocal --endpoint-url=$ENDPOINT s3 cp reports/junit-unit.xml "${PREFIX}/unit/junit-unit.xml" || true
+          [ -d reports ] && awslocal --endpoint-url=$ENDPOINT s3 sync reports "${PREFIX}/reports" || true
 
       - name: Upload local artifact (opcional)
         uses: actions/upload-artifact@v4
