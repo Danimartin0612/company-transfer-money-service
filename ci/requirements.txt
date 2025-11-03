@@ -1,3 +1,5 @@
 pytest
 pytest-xdist
 requests
+fastapi
+uvicorn[standard]
