@@ -31,7 +31,7 @@ pipeline {
         sh '''
           . .venv/bin/activate
           mkdir -p reports
-          pytest --junitxml=reports/junit-unit.xml
+          pytest -n auto --junitxml=reports/junit-unit.xml
         '''
       }
       post {
