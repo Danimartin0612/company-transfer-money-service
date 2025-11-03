@@ -8,6 +8,7 @@ pipeline {
     string(name: 'STAGING_URL', defaultValue: 'http://localhost:5000', description: 'Base URL de staging (http://host:puerto)')
   }
 
+
   stages {
     stage('Checkout') {
       steps { checkout scm }
