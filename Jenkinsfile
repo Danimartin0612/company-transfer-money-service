@@ -53,7 +53,7 @@ pipeline {
           set -euxo pipefail
           . .venv/bin/activate
 
-          # Arranca el mock de "staging" en segundo plano
+          # Arranca el mock de staging en sgundo plano
           uvicorn service.mock_staging.app:app --host 0.0.0.0 --port 5000 &
           echo $! > .staging.pid
 
@@ -79,26 +79,34 @@ pipeline {
       }
     }
     stage('E2E tests (Selenium)') {
-      when { expression { return params.ENV == 'staging' } }
       steps {
         sh '''
           set -euxo pipefail
           . .venv/bin/activate
 
-          # Levantar Selenium (standalone-chrome)
+          # 1) Levanta selenium
           docker compose -f ci/selenium/docker-compose.e2e.yml up -d
 
-          # Esperar a que el hub esté listo
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:4444/wd/hub/status | grep -q '"ready":true'; then
+          # 2) Resuelve la IP del contenedor selenium-e2e en su red bridge
+          SEL_CONTAINER=selenium-e2e
+          SEL_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$SEL_CONTAINER")
+          echo "Selenium container IP: $SEL_HOST"
+
+          # 3) Espera a que Selenium est listo
+          for i in $(seq 1 60); do
+            if curl -sf "http://$SEL_HOST:4444/wd/hub/status" | grep -q '"ready":true'; then
+              echo "Selenium is ready"
               break
             fi
             sleep 1
           done
 
-          export SELENIUM_URL="http://localhost:4444/wd/hub"
+          # 4) Exporta la URL para los tsts
+          export SELENIUM_URL="http://$SEL_HOST:4444/wd/hub"
+
+          # 5) Ejecuta los E2E
           mkdir -p reports
-          pytest -m "e2e" --junitxml=reports/junit-e2e.xml service/tests/e2e
+          pytest -m e2e --junitxml=reports/junit-e2e.xml service/tests/e2e
         '''
       }
       post {
