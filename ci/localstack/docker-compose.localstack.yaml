@@ -1,15 +1,21 @@
 services:
   localstack:
-    image: localstack/localstack:latest
+    image: localstack/localstack:3.9
+    container_name: localstack-s3
     environment:
       - SERVICES=s3
-      - DEFAULT_REGION=eu-west-1
-      - AWS_DEFAULT_REGION=eu-west-1
-      - DEBUG=0
+      - DEBUG=1
+      - AWS_REGION=eu-west-1
+      - DOCKER_HOST=unix:///var/run/docker.sock
     ports:
-      - "4566:4566"   #
+      - "4566:4566"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     volumes:
-      - "localstack-data:/var/lib/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
+      - "localstack_data:/var/lib/localstack"
 volumes:
-  localstack-data:
+  localstack_data:
