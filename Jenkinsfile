@@ -50,7 +50,21 @@ pipeline {
       when { expression { return params.ENV == 'staging' } }
       steps {
         sh '''
+          set -euxo pipefail
           . .venv/bin/activate
+
+          # Arranca el mock de "staging" en segundo plano
+          uvicorn service.mock_staging.app:app --host 0.0.0.0 --port 5000 &
+          echo $! > .staging.pid
+
+          # Espera a que responda /health
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:5000/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
           export BASE_URL="${STAGING_URL}"
           mkdir -p reports
           pytest --junitxml=reports/junit-integration.xml service/tests/integration
@@ -58,6 +72,7 @@ pipeline {
       }
       post {
         always {
+          sh 'kill $(cat .staging.pid) 2>/dev/null || true'
           junit 'reports/junit-integration.xml'
           archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
         }
