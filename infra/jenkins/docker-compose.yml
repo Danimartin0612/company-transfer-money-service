@@ -1,0 +1,13 @@
+services:
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    ports:
+      - "8090:8080" #suele ser un puerto en local muy usado el 8080 mejor lo muevo al 8090
+      - "50000:50000"
+    restart: unless-stopped
+    volumes:
+      - jenkins_home:/var/jenkins_home
+
+volumes:
+  jenkins_home:
