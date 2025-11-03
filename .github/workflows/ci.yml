@@ -47,16 +47,23 @@ jobs:
           mkdir -p reports
           pytest -m "not integration and not e2e" -n auto --junitxml=reports/junit-unit.xml
 
-      - name: Wait for LocalStack S3 (HTTP)
+      - name: Wait for LocalStack S3 (probe via AWS)
         run: |
+          set -e
+          ENDPOINT=http://127.0.0.1:4566
           for i in $(seq 1 60); do
-            if curl -fsS http://localhost:4566/_localstack/health | grep -E '"s3"\s*:\s*"running"'; then
+            if awslocal --endpoint-url=$ENDPOINT s3api list-buckets >/dev/null 2>&1; then
               echo "LocalStack S3 listo."
-              break
+              exit 0
             fi
             sleep 2
           done
-          curl -fsS http://localhost:4566/_localstack/health || true
+          echo "Timeout esperando a LocalStack S3"
+          # Ayuda de debug:
+          curl -fsS ${ENDPOINT}/_localstack/health || true
+          docker ps -a || true
+          # Fuerza fallo del job si no respondió a tiempo
+          exit 1
 
       - name: Prepare LocalStack S3
         run: |
