@@ -10,8 +10,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install -r ci/requirements.txt
-      - run: pytest
+          cache: 'pip'
+          cache-dependency-path: ci/requirements.txt
+
+      - name: Install deps
+        run: pip install -r ci/requirements.txt
+
+      - name: Run unit tests (exclude integration)
+        run: |
+          mkdir -p reports
+          pytest -m "not integration" -n auto --junitxml=reports/junit-unit.xml
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-unit
+          path: reports/junit-unit.xml
