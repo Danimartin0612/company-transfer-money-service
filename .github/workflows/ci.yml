@@ -17,7 +17,7 @@ jobs:
 
     services:
       localstack:
-        image: localstack/localstack:3.0.2  # ✅ Usar versión específica
+        image: localstack/localstack:latest
         env:
           SERVICES: s3
           AWS_DEFAULT_REGION: eu-west-1
