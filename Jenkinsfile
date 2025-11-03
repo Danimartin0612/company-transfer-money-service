@@ -117,5 +117,68 @@ pipeline {
         }
       }
     }
+    stage('Start LocalStack (S3)') {
+      steps {
+        sh '''
+          set -euxo pipefail
+          docker compose -f ci/localstack/docker-compose.localstack.yml up -d
+          # Espera a que responda
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:4566/health | grep -q '"s3": "running"' && break || sleep 1
+          done
+          python -m pip install --upgrade pip awscli-local || pip install --upgrade pip awscli-local
+          # Crea bucket si no existe
+          awslocal --endpoint-url=http://localhost:4566 s3api head-bucket --bucket company-transfer-ci-artifacts \
+            || awslocal --endpoint-url=http://localhost:4566 s3api create-bucket --bucket company-transfer-ci-artifacts
+        '''
+      }
+    }
+
+    stage('Publish reports to S3 (LocalStack)') {
+      steps {
+        sh '''
+          set -euxo pipefail
+          . .venv/bin/activate || true
+          command -v awslocal >/dev/null 2>&1 || python -m pip install awscli-local
+
+          REPO="company-transfer-money-service"
+          BRANCH="${BRANCH_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
+          COMMIT="${GIT_COMMIT:-$(git rev-parse HEAD)}"
+          CI_SYSTEM="jenkins"
+          BUCKET="company-transfer-ci-artifacts"
+          PREFIX="s3://${BUCKET}/${REPO}/${BRANCH}/${COMMIT}/${CI_SYSTEM}"
+
+          # Sube XMLs individuales si existen
+          [ -f reports/junit-unit.xml ] && awslocal s3 cp reports/junit-unit.xml "${PREFIX}/unit/junit-unit.xml" || true
+          [ -f reports/junit-integration.xml ] && awslocal s3 cp reports/junit-integration.xml "${PREFIX}/integration/junit-integration.xml" || true
+          [ -f reports/junit-e2e.xml ] && awslocal s3 cp reports/junit-e2e.xml "${PREFIX}/e2e/junit-e2e.xml" || true
+
+          # Y/o todo el folder reports (screenshots, coverage, etc.)
+          [ -d reports ] && awslocal s3 sync reports "${PREFIX}/reports" || true
+
+          echo "S3_LOCALSTACK_PREFIX=${PREFIX}" | tee s3_prefix.env
+        '''
+      }
+      post {
+        always {
+          script {
+            def prefix = sh(returnStdout: true, script: "grep S3_LOCALSTACK_PREFIX s3_prefix.env | cut -d= -f2 || true").trim()
+            if (prefix) {
+              currentBuild.description = "Reports (LocalStack): ${prefix}"
+              echo "Reports publicados en LocalStack: ${prefix}"
+            }
+          }
+        }
+      }
+    }
+
+    stage('Stop LocalStack') {
+      steps {
+        sh '''
+          set -euxo pipefail
+          docker compose -f ci/localstack/docker-compose.localstack.yml down -v || true
+        '''
+      }
+    }
   }
 }

@@ -1,3 +1,4 @@
+# .github/workflows/ci.yml
 name: CI
 
 on:
@@ -8,6 +9,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    services:
+      localstack:
+        image: localstack/localstack:latest
+        env:
+          SERVICES: s3
+          DEFAULT_REGION: eu-west-1
+          AWS_DEFAULT_REGION: eu-west-1
+        ports:
+          - 4566:4566
+        options: >-
+          --health-cmd="curl -sf http://localhost:4566/health | grep 'running' || exit 1"
+          --health-interval=5s --health-retries=30 --health-timeout=5s
+
     steps:
       - uses: actions/checkout@v4
 
@@ -18,15 +33,34 @@ jobs:
           cache-dependency-path: ci/requirements.txt
 
       - name: Install deps
-        run: pip install -r ci/requirements.txt
+        run: pip install -r ci/requirements.txt awscli-local
 
-      - name: Run unit tests (exclude integration/e2e)
+      - name: Unit tests (exclude integration)
         run: |
           mkdir -p reports
-          pytest -m "not integration and not e2e" -n auto --junitxml=reports/junit-unit.xml
+          pytest -m "not integration" -n auto --junitxml=reports/junit-unit.xml
 
-      - name: Upload test report
+      - name: Prepare LocalStack S3
+        run: |
+          awslocal --endpoint-url=http://localhost:4566 s3api create-bucket --bucket company-transfer-ci-artifacts || true
+
+      - name: Publish reports to LocalStack S3
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          BUCKET=company-transfer-ci-artifacts
+          REPO=company-transfer-money-service
+          BRANCH="${GITHUB_REF_NAME}"
+          COMMIT="${GITHUB_SHA}"
+          CI_SYSTEM=github
+          PREFIX="s3://${BUCKET}/${REPO}/${BRANCH}/${COMMIT}/${CI_SYSTEM}"
+
+          [ -f reports/junit-unit.xml ] && awslocal s3 cp reports/junit-unit.xml "${PREFIX}/unit/junit-unit.xml" || true
+          awslocal s3 sync reports "${PREFIX}/reports" || true
+
+      - name: Upload local artifact (opcional)
         uses: actions/upload-artifact@v4
         with:
-          name: junit-unit
-          path: reports/junit-unit.xml
+          name: reports
+          path: reports/**
