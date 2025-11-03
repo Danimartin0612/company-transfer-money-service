@@ -1,6 +1,6 @@
 services:
   localstack:
-    image: localstack/localstack:3.9
+    image: localstack/localstack:latest
     container_name: localstack-s3
     environment:
       - SERVICES=s3
