@@ -78,5 +78,36 @@ pipeline {
         }
       }
     }
+    stage('E2E tests (Selenium)') {
+      when { expression { return params.ENV == 'staging' } }
+      steps {
+        sh '''
+          set -euxo pipefail
+          . .venv/bin/activate
+
+          # Levantar Selenium (standalone-chrome)
+          docker compose -f ci/selenium/docker-compose.e2e.yml up -d
+
+          # Esperar a que el hub esté listo
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4444/wd/hub/status | grep -q '"ready":true'; then
+              break
+            fi
+            sleep 1
+          done
+
+          export SELENIUM_URL="http://localhost:4444/wd/hub"
+          mkdir -p reports
+          pytest -m "e2e" --junitxml=reports/junit-e2e.xml service/tests/e2e
+        '''
+      }
+      post {
+        always {
+          sh 'docker compose -f ci/selenium/docker-compose.e2e.yml down -v || true'
+          junit 'reports/junit-e2e.xml'
+          archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
+        }
+      }
+    }
   }
 }

@@ -3,3 +3,4 @@ pytest-xdist
 requests
 fastapi
 uvicorn[standard]
+selenium>=4
