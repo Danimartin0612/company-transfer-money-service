@@ -1,4 +1,3 @@
-# .github/workflows/ci.yml
 name: CI
 
 on:
@@ -18,7 +17,7 @@ jobs:
 
     services:
       localstack:
-        image: localstack/localstack:latest   # ✅ etiqueta válida
+        image: localstack/localstack:3.0.2  # ✅ Usar versión específica
         env:
           SERVICES: s3
           AWS_DEFAULT_REGION: eu-west-1
@@ -26,8 +25,10 @@ jobs:
         ports:
           - 4566:4566
         options: >-
-          --health-cmd="sh -c \"curl -fsS http://localhost:4566/_localstack/health | grep -E '\\\"s3\\\"\\s*:\\s*\\\"running\\\"' || exit 1\""
-          --health-interval=5s --health-retries=60 --health-timeout=5s
+          --health-cmd="curl -f http://localhost:4566/_localstack/health || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
     steps:
       - uses: actions/checkout@v4
