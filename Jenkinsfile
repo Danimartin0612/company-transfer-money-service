@@ -1,11 +1,11 @@
 pipeline {
   agent { label 'built-in' }
 
-  options {
+    options {
     timestamps()
-    ansiColor('xterm')
     timeout(time: 20, unit: 'MINUTES')
   }
+
 
   stages {
     stage('Checkout') {
