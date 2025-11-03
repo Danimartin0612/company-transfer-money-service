@@ -45,7 +45,7 @@ jobs:
       - name: Unit tests (exclude integration)
         run: |
           mkdir -p reports
-          pytest -m "not integration" -n auto --junitxml=reports/junit-unit.xml
+          pytest -m "not integration and not e2e" -n auto --junitxml=reports/junit-unit.xml
 
       - name: Wait for LocalStack S3 (HTTP)
         run: |
