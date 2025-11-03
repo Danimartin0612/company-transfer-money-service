@@ -67,7 +67,7 @@ jobs:
 
       - name: Prepare LocalStack S3
         run: |
-          ENDPOINT=http://localhost:4566
+          ENDPOINT=http://127.0.0.1:4566
           BUCKET=company-transfer-ci-artifacts
           awslocal --endpoint-url=$ENDPOINT s3api head-bucket --bucket "$BUCKET" \
             || awslocal --endpoint-url=$ENDPOINT s3api create-bucket --bucket "$BUCKET" \
@@ -79,7 +79,7 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
-          ENDPOINT=http://localhost:4566
+          ENDPOINT=http://127.0.0.1:4566
           BUCKET=company-transfer-ci-artifacts
           REPO=company-transfer-money-service
           BRANCH="${GITHUB_REF_NAME}"
