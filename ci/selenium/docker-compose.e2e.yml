@@ -1,11 +1,14 @@
-version: "3.8"
 services:
   selenium:
     image: selenium/standalone-chrome:latest
-    container_name: selenium-e2e
     ports:
       - "4444:4444"
-    shm_size: 2gb
+    shm_size: 2g
     environment:
       - SE_NODE_MAX_SESSIONS=1
       - SE_NODE_OVERRIDE_MAX_SESSIONS=true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:4444/status | grep -q '\"ready\": true'"]
+      interval: 3s
+      timeout: 2s
+      retries: 40

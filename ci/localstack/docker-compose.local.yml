@@ -1,21 +1,23 @@
+version: '3.8'
 services:
   localstack:
-    image: localstack/localstack:latest
+    image: localstack/localstack:2.3.2
     container_name: localstack-s3
     environment:
       - SERVICES=s3
       - DEBUG=1
-      - AWS_REGION=eu-west-1
-      - DOCKER_HOST=unix:///var/run/docker.sock
+      - AWS_DEFAULT_REGION=eu-west-1
     ports:
       - "4566:4566"
+    networks:
+      - jenkins-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock"
-      - "localstack_data:/var/lib/localstack"
-volumes:
-  localstack_data:
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+networks:
+  jenkins-net:
+    external: true
